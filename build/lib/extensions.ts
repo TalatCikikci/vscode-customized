@@ -562,11 +562,19 @@ export function packageCopilotExtensionStream(): Stream {
 	const productionDependencies = getProductionDependencies('extensions/copilot');
 	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
+	// build/.moduleignore strips @github/copilot (the app doesn't need it), and the extension's files
+	// are listed without node_modules, so the SDK files the extension's .vscodeignore keeps are added here.
+	const copilotSdkSrc = fs.readFileSync(path.join(extensionPath, '.vscodeignore'), 'utf8')
+		.split(/\r?\n/)
+		.filter(line => line.startsWith('!node_modules/@github/copilot/'))
+		.map(line => `extensions/copilot/${line.slice(1)}`);
+
 	return es.merge(
 		localExtensionsStream,
 		gulp.src(dependenciesSrc, { base: '.' })
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
-			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
+			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))),
+		gulp.src(copilotSdkSrc, { base: '.', dot: true })
 	).pipe(util2.setExecutableBit(['**/*.sh']));
 }
 
